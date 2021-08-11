@@ -1,0 +1,45 @@
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:async';
+
+class API {
+
+  Future<List> getBalancesByIdNo(String idNumber) async {
+    String url = 'http://192.168.31.91/mem_balances/get_balances.php?idNumber='+idNumber;
+    print(url);
+
+      final response = await http.get(Uri.parse(url));
+      print(response);
+      if (response.statusCode == 200) {
+        print(response.body);
+
+        final parsedResponse = jsonDecode(response.body);
+        print(parsedResponse);
+        final List<dynamic> balanceEntries = parsedResponse['BalType'];
+
+        return balanceEntries;
+      }
+      else {
+        throw Exception('Failed to load');
+      }
+  }
+
+  Future<List> getStatementByIdNo(String idNumber, String docId) async {
+    String url = 'http://192.168.31.91/mem_balances/get_statement.php?idNumber=' +idNumber + '&docId=' + docId;
+    final response = await http.get(Uri.parse(url));
+    //print(response.statusCode);
+    if (response.statusCode == 200) {
+      print(response.body);
+
+      final parsedResponse = jsonDecode(response.body);
+      // print(parsedResponse);
+      final List<dynamic> statementEntries = parsedResponse['Statement'];
+
+      return statementEntries;
+    } else {
+      throw Exception('Failed to load');
+    }
+  }
+
+
+}
