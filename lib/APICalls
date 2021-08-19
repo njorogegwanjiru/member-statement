@@ -1,13 +1,30 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/material.dart';
 
 class API {
+  var ip_address, scripts_path;
 
-  Future<List> getBalancesByIdNo(String idNumber) async {
-    String url = 'http://192.168.31.91/mem_balances/get_balances.php?idNumber='+idNumber;
+  Future<void> loadAsset(BuildContext context) async {
+    final jsonString = await DefaultAssetBundle.of(context)
+        .loadString('config.json');
+    final dynamic jsonMap = jsonDecode(jsonString);
+
+    print(jsonMap['ip_address']);
+    print(jsonMap['scripts_path']);
+
+    ip_address = jsonMap['ip_address'];
+    scripts_path = jsonMap['scripts_path'];
+  }
+
+  Future getBalancesByIdNo(String ipToConnectTo,String idNumber) async {
+    String url = 'http://'+ipToConnectTo+'/mem_balances/get_balances.php?idNumber=' +
+        idNumber;
     print(url);
 
+    try {
       final response = await http.get(Uri.parse(url));
       print(response);
       if (response.statusCode == 200) {
@@ -15,29 +32,55 @@ class API {
 
         final parsedResponse = jsonDecode(response.body);
         print(parsedResponse);
-        final List<dynamic> balanceEntries = parsedResponse['BalType'];
+        try {
+          final List<dynamic> balanceEntries = parsedResponse['BalType'];
+          return parsedResponse;
 
-        return balanceEntries;
+        } catch (_) {
+          var errorText = parsedResponse['BalType'];
+          print( 'error is: $errorText');
+          var errorResponse = {"errorText":"$errorText"};
+          return errorResponse;
+        }
+
       }
       else {
         throw Exception('Failed to load');
-      }
+      };
+    } catch (e) {
+      var errorResponse = {"errorText":"$e"};
+      return errorResponse;
+    }
   }
 
-  Future<List> getStatementByIdNo(String idNumber, String docId) async {
-    String url = 'http://192.168.31.91/mem_balances/get_statement.php?idNumber=' +idNumber + '&docId=' + docId;
-    final response = await http.get(Uri.parse(url));
-    //print(response.statusCode);
-    if (response.statusCode == 200) {
-      print(response.body);
+  Future getStatementByIdNo(String ipToConnectTo,String idNumber, String docId) async {
+    String url = 'http://'+ipToConnectTo+'/mem_balances/get_statement.php?idNumber=' +
+        idNumber + '&docId=' + docId;
+    try {
+      final response = await http.get(Uri.parse(url));
+      // print(response.statusCode);
+      if (response.statusCode == 200) {
 
-      final parsedResponse = jsonDecode(response.body);
-      // print(parsedResponse);
-      final List<dynamic> statementEntries = parsedResponse['Statement'];
+        final parsedResponse = jsonDecode(response.body);
+        print('response $parsedResponse');
 
-      return statementEntries;
-    } else {
-      throw Exception('Failed to load');
+        if(parsedResponse.containsKey('Statement')){
+          final List<dynamic> statementEntries = parsedResponse['Statement'];
+          return parsedResponse;
+        }
+        else{
+          String errorText = parsedResponse['message'];
+          print( 'error is: $errorText');
+          var errorResponse = {"sqlErrorText":"$errorText"};
+          return errorResponse;
+        }
+
+      } else {
+        throw Exception('Failed to load');
+      }
+    } catch (e) {
+      var errorResponse = {"errorText":"$e"};
+      return errorResponse;
     }
   }
 

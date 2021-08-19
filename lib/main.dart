@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:member_statement/HomePage.dart';
+import 'package:member_statement/settings.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-void main() {
-  runApp(MyApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  SharedPreferences sharedPreferences = await SharedPreferences.getInstance();
+  var ipAddress = sharedPreferences.getString('currentIp');
+  print('ip address is set to: $ipAddress');
+
+  runApp(MaterialApp(
+    home: ipAddress == null ? Settings() : HomePage(ipAddress),
+    debugShowCheckedModeBanner: false,
+    title: 'Get Member Statement',
+    theme: ThemeData(
+      primarySwatch: Colors.indigo,
+    ),
+  ));
 }
 
-class MyApp extends StatelessWidget {
-  // This widget is the root of your application.
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Get Member Statement',
-      theme: ThemeData(
-        primarySwatch: Colors.indigo,
-      ),
-      home: HomePage(),
-    );
-  }
-}

@@ -1,13 +1,17 @@
-import 'dart:convert';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_neumorphic/flutter_neumorphic.dart';
+import 'package:intl/intl.dart';
 import 'package:member_statement/APICalls';
+import "package:collection/collection.dart";
+import 'package:member_statement/settings.dart';
 
 class HomePage extends StatefulWidget {
+  const HomePage(this.currentIpAddress);
+
   @override
   _HomePageState createState() => _HomePageState();
+  final String currentIpAddress;
 }
 
 class _HomePageState extends State<HomePage> {
@@ -25,10 +29,18 @@ class _HomePageState extends State<HomePage> {
 
   bool requestedBalances = false;
   bool requestedStatement = false;
+  String loansLabel = 'Loans';
+
+  bool ipIsSet = false;
 
   @override
   void initState() {
     super.initState();
+    if (!(widget.currentIpAddress == null || widget.currentIpAddress.isEmpty)) {
+      setState(() {
+        ipIsSet = true;
+      });
+    }
   }
 
   @override
@@ -69,81 +81,150 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return new WillPopScope(
       onWillPop: _onWillPop,
-      child: Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
-          title: Text("Member Details."),
-          elevation: 0,
-        ),
-        body: Stack(
-          children: [
-            Container(
-              height: 80,
-              color: Theme.of(context).primaryColor,
-            ),
-            Column(
-              children: [
-                SizedBox(height: MediaQuery.of(context).size.height*0.1/10,),
-                buildNeuCard(
-                  context,
+      child: widget.currentIpAddress == null
+          ? Scaffold(
+              appBar: AppBar(
+                title: Text('Home'),
+                elevation: 0,
+                actions: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: AppBarIcon(
+                      icon: Icons.settings,
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => Settings()),
+                        );
+
+                      },
+                    ),
+                  )
+                ],
+              ),
+            )
+          : Scaffold(
+              backgroundColor: Colors.white,
+              appBar: AppBar(
+                title: Text('Fetching from:  ${widget.currentIpAddress} '),
+                centerTitle: true,
+                elevation: 0,
+                leading: AppBarIcon(
+                  icon: Icons.arrow_back,
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                ),
+                actions: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: AppBarIcon(
+                      icon: Icons.settings,
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => Settings()),
+                        );
+                      },
+                    ),
+                  )
+                ],
+              ),
+              body: Stack(
+                children: [
+                  Container(
+                    height: 80,
+                    color: Theme.of(context).primaryColor,
+                  ),
                   Column(
-                    children: [buildInputArea(), buildChoiceButtons(context)],
-                  ),
-                ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.vertical,
-                    child: requestedBalances
-                        ? FutureBuilder(
-                            future: API().getBalancesByIdNo(inputController.text),
-                            builder: (BuildContext context, snapshot) {
-                              print('data: ');
-                              print(snapshot.data);
-                              if (snapshot.connectionState ==
-                                  ConnectionState.done) {
-                                if (snapshot.hasData) {
-                                  return balancesDataTable(snapshot, context);
-                                }
-                                if (!snapshot.hasData) {
-                                  return buildNoRecordsFound();
-                                }
-                              }
-                              if (snapshot.connectionState ==
-                                  ConnectionState.waiting) {
-                                return buildLoading(context);
-                              }
-
-                              return Center();
-                            })
-                        : requestedStatement
-                            ? FutureBuilder(
-                                future: API().getStatementByIdNo(
-                                    inputController.text, docIdInput),
-                                builder: (BuildContext context, snapshot) {
-                                  if (snapshot.connectionState ==
-                                      ConnectionState.done) {
-                                    if (snapshot.hasData) {
-                                      return statementDataTable(snapshot, context);
-                                    }
-                                    if (!snapshot.hasData) {
-                                      return buildNoRecordsFound();
-                                    }
+                    children: [
+                      SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.1 / 10,
+                      ),
+                      buildNeuCard(
+                        context,
+                        Column(
+                          children: [
+                            buildInputArea(),
+                            buildChoiceButtons(context)
+                          ],
+                        ),
+                      ),
+                      requestedBalances
+                          ? FutureBuilder(
+                              future: API().getBalancesByIdNo(
+                                widget.currentIpAddress,
+                                inputController.text,
+                              ),
+                              builder: (BuildContext context, snapshot) {
+                                if (snapshot.connectionState ==
+                                    ConnectionState.done) {
+                                  if (snapshot.hasData) {
+                                    bool containsError =
+                                        snapshot.data.containsKey("errorText");
+                                    return containsError
+                                        ? snapshot.data['errorText'] ==
+                                                "Record not found!"
+                                            ? buildNoRecordsFound()
+                                            : buildConnectionError(
+                                                snapshot.data['errorText'])
+                                        : balancesView(snapshot, context);
                                   }
-                                  if (snapshot.connectionState ==
-                                      ConnectionState.waiting) {
-                                    return buildLoading(context);
+                                  if (!snapshot.hasData) {
+                                    return buildNoRecordsFound();
                                   }
+                                }
+                                if (snapshot.connectionState ==
+                                    ConnectionState.waiting) {
+                                  return buildLoading(context);
+                                }
 
-                                  return Center();
-                                })
-                            : buildSearchAbove(),
+                                return Center();
+                              })
+                          : requestedStatement
+                              ? FutureBuilder(
+                                  future: API().getStatementByIdNo(
+                                      widget.currentIpAddress,
+                                      inputController.text,
+                                      docIdInput),
+                                  builder: (BuildContext context, snapshot) {
+                                    if (snapshot.connectionState ==
+                                        ConnectionState.done) {
+                                      if (snapshot.hasData) {
+                                        bool containsError = snapshot.data
+                                            .containsKey("errorText");
+                                        bool containsSqlError = snapshot.data
+                                            .containsKey("sqlErrorText");
+                                        print(containsSqlError);
+
+                                        return containsError
+                                            ? buildConnectionError(
+                                                snapshot.data['errorText'])
+                                            : containsSqlError
+                                                ? buildNoRecordsFound()
+                                                : depositsSelected
+                                                    ? sharesStatementView(
+                                                        snapshot, context)
+                                                    : loansStatementView(
+                                                        snapshot, context);
+                                      }
+                                      if (!snapshot.hasData) {
+                                        return buildNoRecordsFound();
+                                      }
+                                    }
+                                    if (snapshot.connectionState ==
+                                        ConnectionState.waiting) {
+                                      return buildLoading(context);
+                                    }
+
+                                    return Center();
+                                  })
+                              : buildSearchAbove(),
+                    ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -172,72 +253,275 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  statementDataTable(AsyncSnapshot<dynamic> snapshot, BuildContext context) {
-    return buildNeuCard(
-      context,
-      DataTable(
-        columnSpacing: 10.0,
-        columns: [
-          buildDataColumn('DATE'),
-          buildDataColumn('DESCRIPTION'),
-          buildDataColumn('AMOUNT'),
-        ],
-        rows: List.generate(snapshot.data.length, (index) {
-          final docDate = snapshot.data[index]['DocDate'];
-          final docDesc = snapshot.data[index]['DocDesc'];
-          final docAmount = snapshot.data[index]['DocAmount'];
-          return DataRow(cells: [
-            DataCell(Container(
-                width: MediaQuery.of(context).size.width / 5,
-                child: Text('$docDate'))),
-            DataCell(Container(
-                width: MediaQuery.of(context).size.width / 2,
-                child: Text('$docDesc'))),
-            DataCell(Container(
-                width: MediaQuery.of(context).size.width / 6,
-                child: Text('$docAmount'))),
-          ]);
-        }),
-      ),
-    );
+  sharesStatementView(AsyncSnapshot<dynamic> snapshot, BuildContext context) {
+    var width = MediaQuery.of(context).size.width;
+
+    var sharesList = snapshot.data['Statement'];
+    sharesList.sort((a, b) {
+      int schemeCompare = a['Scheme']
+          .toString()
+          .toLowerCase()
+          .compareTo(b['Scheme'].toString().toLowerCase());
+
+      if (schemeCompare != 0) return schemeCompare;
+
+      DateFormat format = DateFormat("dd/MM/yyyy");
+      return format.parse(a['DocDate']).compareTo(format.parse(b['DocDate']));
+    });
+
+    var newMap = groupBy(sharesList, (obj) => obj['Scheme']);
+
+    return ListView.builder(
+        shrinkWrap: true,
+        itemCount: newMap.length,
+        itemBuilder: (context, index) {
+          String key = newMap.keys.elementAt(index);
+          return buildNeuCard(
+              context,
+              ListView(
+                shrinkWrap: true,
+                children: [
+                  Container(
+                    height: 30,
+                    padding: EdgeInsets.symmetric(vertical: 8, horizontal: 5),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        buildDTHeader('DATE'),
+                        buildDTHeader('DESCRIPTION'),
+                        buildDTHeader('AMOUNT'),
+                      ],
+                    ),
+                    color: Colors.indigo,
+                  ),
+                  new ListTile(
+                    title: new Text(
+                      "Scheme Code : $key",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  ListView.separated(
+                    itemBuilder: (context, index) {
+                      return Padding(
+                        padding: EdgeInsets.only(top: 4, bottom: 4, left: 10),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                                width: width * 1 / 4,
+                                child: Text(snapshot.data['Statement'][index]['DocDate'])),
+                            Container(
+                                width: width * 2 / 4,
+                                child: Text(snapshot.data['Statement'][index]['DocDesc'])),
+                            Container(
+                                width: width * 0.5 / 4,
+                                child: Text(snapshot.data['Statement'][index]['DocAmount'])),
+                          ],
+                        ),
+                      );
+                    },
+                    separatorBuilder: (context, index) =>
+                        Divider(height: 0.5, color: Colors.grey),
+                    physics: PageScrollPhysics(),
+                    scrollDirection: Axis.vertical,
+                    shrinkWrap: true,
+                    itemCount: newMap[key].length,
+                  )
+                ],
+              ));
+        });
+
+    // return buildNeuCard(
+    //     context,
+    //     ListView(
+    //       shrinkWrap: true,
+    //       children: [
+    //         Container(
+    //           height: 30,
+    //           padding: EdgeInsets.symmetric(vertical: 8, horizontal: 5),
+    //           child: Row(
+    //             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    //             children: [
+    //               buildDTHeader('DATE'),
+    //               buildDTHeader('DESCRIPTION'),
+    //               buildDTHeader('AMOUNT'),
+    //             ],
+    //           ),
+    //           color: Colors.indigo,
+    //         ),
+    //         ListView.separated(
+    //           separatorBuilder: (context, index) =>
+    //               Divider(height: 0.5, color: Colors.grey),
+    //           physics: PageScrollPhysics(),
+    //           scrollDirection: Axis.vertical,
+    //           shrinkWrap: true,
+    //           itemCount: snapshot.data.length,
+    //           itemBuilder: (context, index) {
+    //             return Padding(
+    //               padding: EdgeInsets.only(top: 8, bottom: 8, left: 10),
+    //               child: Row(
+    //                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    //                 children: [
+    //                   Container(
+    //                       width: width * 1 / 4,
+    //                       child: Text(snapshot.data[index]['DocDate'])),
+    //                   Container(
+    //                       width: width * 2 / 4,
+    //                       child: Text(snapshot.data[index]['DocDesc'])),
+    //                   Container(
+    //                       width: width * 0.5 / 4,
+    //                       child: Text(snapshot.data[index]['DocAmount'])),
+    //                 ],
+    //               ),
+    //             );
+    //           },
+    //         ),
+    //       ],
+    //     ));
   }
 
-  balancesDataTable(AsyncSnapshot<dynamic> snapshot, BuildContext context) {
-    return buildNeuCard(
-      context,
-      DataTable(
-        columnSpacing: 10.0,
-        columns: [
-          // buildDataColumn('Doc ID: '),
-          buildDataColumn('DESCRIPTION'),
-          buildDataColumn('BALANCE'),
-          // buildDataColumn('Ref Code: '),
-          buildDataColumn('ACCOUNT NAME'),
-        ],
-        rows: List.generate(snapshot.data.length, (index) {
-          final docId = snapshot.data[index]['DocID'];
-          final description = snapshot.data[index]['Description'];
-          final balance = snapshot.data[index]['Balance'];
-          final refCode = snapshot.data[index]['RefCode'];
-          final accountName = snapshot.data[index]['AccountName'];
+  loansStatementView(AsyncSnapshot<dynamic> snapshot, BuildContext context) {
+    var width = MediaQuery.of(context).size.width;
 
-          return DataRow(cells: [
-            // DataCell(
-            //     Container(width: 40, child: Text('$docId'))),
-            DataCell(Container(
-                width: MediaQuery.of(context).size.width / 3,
-                child: Text('$description'))),
-            DataCell(Container(
-                width: MediaQuery.of(context).size.width / 5,
-                child: Text('$balance'))),
-            // DataCell(Container(width: 40,child: Text('$refCode'))),
-            DataCell(Container(
-                width: MediaQuery.of(context).size.width / 3,
-                child: Text('$accountName'))),
-          ]);
-        }),
-      ),
-    );
+    var loansList = snapshot.data['Statement'];
+
+    loansList.sort((a, b) {
+      int serialCompare = a['ReferenceCode']
+          .toString()
+          .toLowerCase()
+          .compareTo(b['ReferenceCode'].toString().toLowerCase());
+
+      if (serialCompare != 0) return serialCompare;
+
+      DateFormat format = DateFormat("dd/MM/yyyy");
+
+      return format.parse(a['DocDate']).compareTo(format.parse(b['DocDate']));
+    });
+
+    var newMap = groupBy(loansList, (obj) => obj['ReferenceCode']);
+    print(newMap);
+    // loansLabel='Loans (${newMap.length})';
+
+    return ListView.builder(
+        shrinkWrap: true,
+        itemBuilder: (context, index) {
+          String key = newMap.keys.elementAt(index);
+          return buildNeuCard(
+            context,
+            ListView(
+              shrinkWrap: true,
+              children: <Widget>[
+                Container(
+                  height: 30,
+                  padding: EdgeInsets.symmetric(vertical: 8, horizontal: 5),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      buildDTHeader('DATE'),
+                      buildDTHeader('DESCRIPTION'),
+                      buildDTHeader('AMOUNT'),
+                    ],
+                  ),
+                  color: Colors.indigo,
+                ),
+                new ListTile(
+                  title: new Text(
+                    "Loan ID : $key",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                ListView.separated(
+                  separatorBuilder: (context, index) =>
+                      Divider(height: 0.5, color: Colors.grey),
+                  physics: PageScrollPhysics(),
+                  scrollDirection: Axis.vertical,
+                  shrinkWrap: true,
+                  itemCount: newMap[key].length,
+                  itemBuilder: (context, index) {
+                    return Padding(
+                      padding: EdgeInsets.only(top: 4, bottom: 4, left: 10),
+                      child: (Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                              width: width * 1 / 4,
+                              child: Text(newMap[key][index]['DocDate'])),
+                          Container(
+                              width: width * 2 / 4,
+                              child: Text(newMap[key][index]['DocDesc'])),
+                          Container(
+                              width: width * 0.5 / 4,
+                              child: Text(newMap[key][index]['DocAmount'])),
+                        ],
+                      )),
+                    );
+                  },
+                ),
+              ],
+            ),
+          );
+        },
+        itemCount: newMap.length);
+  }
+
+  Text buildDTHeader(header) => Text(
+        header,
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+      );
+
+  balancesView(AsyncSnapshot<dynamic> snapshot, BuildContext context) {
+    var width = MediaQuery.of(context).size.width;
+
+    return buildNeuCard(
+        context,
+        ListView(
+          shrinkWrap: true,
+          children: [
+            Container(
+              height: 30,
+              padding: EdgeInsets.symmetric(vertical: 8, horizontal: 5),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  buildDTHeader('ACCOUNT NAME'),
+                  buildDTHeader('DESCRIPTION'),
+                  buildDTHeader('BALANCE'),
+                ],
+              ),
+              color: Colors.indigo,
+            ),
+            ListView.separated(
+              separatorBuilder: (context, index) =>
+                  Divider(height: 0.5, color: Colors.grey),
+              physics: PageScrollPhysics(),
+              scrollDirection: Axis.vertical,
+              shrinkWrap: true,
+              itemCount: snapshot.data.length,
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding: EdgeInsets.only(top: 8, bottom: 8, left: 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                          width: width * 1 / 4,
+                          child: Text(
+                              snapshot.data['BalType'][index]['AccountName'])),
+                      Container(
+                          width: width * 2 / 4,
+                          child: Text(
+                              snapshot.data['BalType'][index]['Description'])),
+                      Container(
+                          width: width * 0.5 / 4,
+                          child:
+                              Text(snapshot.data['BalType'][index]['Balance'])),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ));
   }
 
   buildLoading(BuildContext context) {
@@ -294,6 +578,63 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  buildConnectionError(String cause) {
+    return buildNeuCard(
+      context,
+      Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.link_off_sharp,
+              size: 90,
+              color: Colors.grey,
+            ),
+            Text(
+              'Connection failed...',
+              style: TextStyle(fontSize: 20, color: Colors.grey),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text(
+                '$cause',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+            ),
+            SizedBox(
+              height: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  buildNoIPAddressYet() {
+    return buildNeuCard(
+      context,
+      Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.link_off_rounded,
+              size: 90,
+              color: Colors.grey,
+            ),
+            Text(
+              'No IP Address Selected...',
+              style: TextStyle(fontSize: 20, color: Colors.grey),
+            ),
+            SizedBox(
+              height: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Row buildChoiceButtons(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -314,6 +655,7 @@ class _HomePageState extends State<HomePage> {
           },
           balancesSelected ? Colors.indigo : Colors.white,
           balancesSelected ? Colors.white : Colors.indigo,
+          balancesSelected ? Icons.refresh_outlined : Icons.search,
         ),
         buildButton(
           context,
@@ -332,10 +674,11 @@ class _HomePageState extends State<HomePage> {
           },
           depositsSelected ? Colors.indigo : Colors.white,
           depositsSelected ? Colors.white : Colors.indigo,
+          depositsSelected ? Icons.refresh_outlined : Icons.search,
         ),
         buildButton(
           context,
-          'Loans ',
+          loansLabel,
           () {
             FocusManager.instance.primaryFocus.unfocus();
             setState(() {
@@ -350,6 +693,7 @@ class _HomePageState extends State<HomePage> {
           },
           loansSelected ? Colors.indigo : Colors.white,
           loansSelected ? Colors.white : Colors.indigo,
+          loansSelected ? Icons.refresh_outlined : Icons.search,
         ),
       ],
     );
@@ -440,7 +784,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Padding buildButton(
-      BuildContext context, String label, onPressed, color, fontColor) {
+      BuildContext context, String label, onPressed, color, fontColor, icon) {
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: TextButton(
@@ -451,7 +795,7 @@ class _HomePageState extends State<HomePage> {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   Icon(
-                    Icons.search,
+                    icon,
                     size: 16,
                     color: fontColor,
                   ),
@@ -468,6 +812,32 @@ class _HomePageState extends State<HomePage> {
                   RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8.0),
                       side: BorderSide(color: Colors.indigo))))),
+    );
+  }
+}
+
+class AppBarIcon extends StatelessWidget {
+  final icon;
+  final Function onPressed;
+
+  AppBarIcon({Key key, this.icon, this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return NeumorphicButton(
+      margin: EdgeInsets.only(top: 0, left: 9, right: 0),
+      onPressed: onPressed,
+      padding: const EdgeInsets.all(12.0),
+      style: NeumorphicStyle(
+        boxShape: NeumorphicBoxShape.circle(),
+        depth: -3,
+        intensity: 0.8,
+        color: Colors.indigo,
+      ),
+      child: Icon(
+        icon,
+        color: Colors.white,
+      ),
     );
   }
 }
